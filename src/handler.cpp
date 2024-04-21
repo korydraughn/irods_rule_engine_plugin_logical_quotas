@@ -200,7 +200,7 @@ namespace
 		if (const auto iter = _tracking_info.find(max_attr_name); iter != std::end(_tracking_info)) {
 			const auto total = get_attribute_value<size_type>(_tracking_info, _attrs.total_size_in_bytes());
 
-			if (total + _delta > iter->second) {
+			if (total + _delta >= iter->second) {
 				throw irods::logical_quotas_error{
 					"Logical Quotas Policy Violation: Adding object exceeds maximum data size in bytes limit",
 					SYS_NOT_ALLOWED};
