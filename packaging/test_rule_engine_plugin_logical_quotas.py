@@ -831,6 +831,29 @@ class Test_Rule_Engine_Plugin_Logical_Quotas(session.make_sessions_mixin(admins,
             self.assert_quotas(sandbox, expected_number_of_objects = 1,
                                         expected_size_in_bytes = file_size)
 
+    @unittest.skipIf(test.settings.RUN_IN_TOPOLOGY, "Skip for Topology Testing")
+    def test_data_objects_having_only_stale_replicas_can_be_removed__issue_111(self):
+        config = IrodsConfig()
+
+        with lib.file_backed_up(config.server_config_path):
+            self.enable_rule_engine_plugin(config)
+
+            col = self.user.session_collection
+            self.logical_quotas_start_monitoring_collection(col)
+
+            # Create a non-empty data object.
+            data_object = f'{col}/test_data_objects_having_only_stale_replicas_can_be_removed__issue_111.txt'
+            contents = 'test_data_objects_having_only_stale_replicas_can_be_removed__issue_111'
+            self.user.assert_icommand(['istream', 'write', data_object], input=contents)
+            self.assert_quotas(col, expected_number_of_objects=1, expected_size_in_bytes=len(contents))
+
+            # Mark the replica stale.
+            lib.set_replica_status(self.admin1, data_object, 0, 0)
+
+            # Show the data object was removed and the total data size was left as is.
+            self.user.assert_icommand(['irm', '-f', data_object])
+            self.assert_quotas(col, expected_number_of_objects=0, expected_size_in_bytes=len(contents))
+
     #
     # Utility Functions
     #
