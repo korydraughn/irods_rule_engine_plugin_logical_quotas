@@ -853,12 +853,26 @@ class Test_Rule_Engine_Plugin_Logical_Quotas(session.make_sessions_mixin(admins,
 
             # Show the plugin blocks subsequent writes since the quota for max allowed
             # bytes has been reached.
+            #
+            # Notice we're attempting to write to the same data object / replica. This
+            # is important because it captures the fact that the plugin only cares about
+            # the call to open and the possibility of violating a quota.
             ec, out, err = self.user.assert_icommand_fail(['istream', 'write', data_object], input=contents)
             self.user.assert_icommand(['imeta', 'ls', '-C', col], 'STDOUT') # Debugging
             self.assertNotEqual(ec, 0)
             self.assertEqual('Level 0: Logical Quotas Policy Violation: Adding object exceeds maximum data size in bytes limit\n', out)
             self.assertEqual('Error: Cannot open data object.\n', err)
             self.assert_quotas(col, expected_number_of_objects=1, expected_size_in_bytes=len(contents))
+
+            # Do the previous step again, except attempt to create a new data object.
+            new_data_object = data_object + '.new'
+            ec, out, err = self.user.assert_icommand_fail(['istream', 'write', new_data_object], input=contents)
+            self.user.assert_icommand(['imeta', 'ls', '-C', col], 'STDOUT') # Debugging
+            self.assertNotEqual(ec, 0)
+            self.assertEqual('Level 0: Logical Quotas Policy Violation: Adding object exceeds maximum data size in bytes limit\n', out)
+            self.assertEqual('Error: Cannot open data object.\n', err)
+            self.assert_quotas(col, expected_number_of_objects=1, expected_size_in_bytes=len(contents))
+            self.assertFalse(lib.replica_exists(self.user, new_data_object, 0))
 
     @unittest.skipIf(test.settings.RUN_IN_TOPOLOGY, "Skip for Topology Testing")
     def test_data_objects_having_only_stale_replicas_can_be_removed__issue_111(self):
