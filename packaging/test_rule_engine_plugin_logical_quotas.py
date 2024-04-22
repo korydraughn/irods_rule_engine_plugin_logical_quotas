@@ -832,6 +832,33 @@ class Test_Rule_Engine_Plugin_Logical_Quotas(session.make_sessions_mixin(admins,
                                         expected_size_in_bytes = file_size)
 
     @unittest.skipIf(test.settings.RUN_IN_TOPOLOGY, "Skip for Topology Testing")
+    def test_plugin_blocks_open_when_max_number_of_bytes_is_reached__issue_NNN(self):
+        config = IrodsConfig()
+
+        with lib.file_backed_up(config.server_config_path):
+            self.enable_rule_engine_plugin(config)
+
+            col = self.user.session_collection
+            self.logical_quotas_start_monitoring_collection(col)
+            self.logical_quotas_set_maximum_size_in_bytes(col, '5')
+
+            # Create a non-empty data object.
+            # The creation of the data object causes the total number of bytes and max
+            # number of bytes to be equal.
+            data_object = f'{col}/test_plugin_blocks_open_when_max_number_of_bytes_is_reached__issue_NNN.txt'
+            contents = 'hello'
+            self.user.assert_icommand(['istream', 'write', data_object], input=contents)
+            self.assert_quotas(col, expected_number_of_objects=1, expected_size_in_bytes=len(contents))
+
+            # Show the plugin blocks subsequent writes since the quota for max allowed
+            # bytes has been reached.
+            ec, out, err = self.user.assert_icommand_fail(['istream', 'write', data_object], input=contents)
+            self.assertNotEqual(ec, 0)
+            self.assertEqual('Level 0: Logical Quotas Policy Violation: Adding object exceeds maximum data size in bytes limit\n', out)
+            self.assertEqual('Error: Cannot open data object.\n', err)
+            self.assert_quotas(col, expected_number_of_objects=1, expected_size_in_bytes=len(contents))
+
+    @unittest.skipIf(test.settings.RUN_IN_TOPOLOGY, "Skip for Topology Testing")
     def test_data_objects_having_only_stale_replicas_can_be_removed__issue_111(self):
         config = IrodsConfig()
 
